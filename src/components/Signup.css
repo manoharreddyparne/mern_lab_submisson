@@ -1,0 +1,6 @@
+.parent{
+    display: flex;
+    width: 400px;
+    box-sizing: content-box;
+    
+}
