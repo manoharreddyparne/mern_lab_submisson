@@ -1,27 +1,37 @@
 import React, { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const VerifyOtp = () => {
-  const [otp, setOtp] = useState("");
-  const { state } = useLocation();
   const navigate = useNavigate();
+  const email = localStorage.getItem("email"); 
+  const [otp, setOtp] = useState("");
+  const [error, setError] = useState("");
+
+  if (!email) {
+    return <p>Error: No email found. Please sign up again.</p>;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
     try {
-      await axios.post("http://localhost:8080/api/verify-otp", { email: state.email, otp });
+      const response = await axios.post("http://localhost:8080/api/verify-otp", { email, otp });
+      console.log("OTP Verified:", response.data);
       navigate("/login");
-    } catch (error) {
-      console.error("OTP verification failed"+error);
+    } catch (err) {
+      console.error("OTP verification error:", err.response?.data || err);
+      setError(err.response?.data?.message || "Invalid OTP. Please try again.");
     }
   };
 
   return (
-    <div className="parent">
+    <div>
+      <h2>Verify OTP</h2>
+      {error && <p style={{ color: "red" }}>{error}</p>}
       <form onSubmit={handleSubmit}>
-        <label>Enter OTP:</label>
-        <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} required />
+        <input type="text" placeholder="Enter OTP" value={otp} onChange={(e) => setOtp(e.target.value)} required />
         <button type="submit">Verify OTP</button>
       </form>
     </div>

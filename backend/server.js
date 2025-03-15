@@ -1,25 +1,27 @@
 import mongoose from "mongoose";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import http from "http";
-import {Customers} from "./userModel"
-import routes from "./routes";
+import process from "node:process";
+import dotenv from "dotenv";
+import routes from "./routes.js";
+
+dotenv.config();
 
 const app = express();
-dotenv.config();
 const server = http.createServer(app);
 
-mongoose.connect("mongodb+srv://parnemanoharreddy19:Pandu1919@auctismc1.91ca1.mongodb.net/?retryWrites=true&w=majority&appName=AuctiSMC1")
+mongoose
+  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
-    console.log("Connected");
-    const PORT = 8080;
+    console.log("Connected to MongoDB");
+    const PORT = process.env.PORT || 8080;
     server.listen(PORT, () => {
-      console.log(`Running on ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.log(err);
+    console.error("MongoDB connection error:", err);
   });
 
 app.use(express.json());

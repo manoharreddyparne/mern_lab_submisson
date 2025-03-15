@@ -1,21 +1,35 @@
 import express from "express";
+import dotenv from "dotenv";
+import process from "node:process";
+dotenv.config();
+
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import Customers from "./userModel";
+import Customers from "./userModel.js";
 import nodemailer from "nodemailer";
+
 
 const router = express.Router();
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user: 'parnemanoharreddy19@gmail.com', pass: 'manoharreddy' },
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 router.post("/signup", async (req, res) => {
   try {
+    console.log("Received signup request:", req.body);
     const { username, email, password } = req.body;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
     const existingUser = await Customers.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "User exists" });
+    if (existingUser) return res.status(400).json({ message: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -30,25 +44,32 @@ router.post("/signup", async (req, res) => {
 
     await newUser.save();
 
+    console.log("Sending OTP email to:", email);
     await transporter.sendMail({
       to: email,
       subject: "Your OTP Code",
       text: `Your OTP is ${otp}`,
     });
 
-    res.status(201).json({ message: "OTP sent to email" });
+    res.status(201).json({ message: "OTP sent to email", email });
   } catch (error) {
-    res.status(500).json({ message: "Error registering" });
+    console.error("Signup Error:", error);
+    res.status(500).json({ message: "Error registering user", error: error.message });
   }
 });
+
+
 
 router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
-    const user = await Customers.findOne({ email });
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required" });
+    }
 
+    const user = await Customers.findOne({ email });
     if (!user || user.otp !== otp || user.otpExpires < new Date()) {
-      return res.status(400).json({ message: "Invalid OTP" });
+      return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     user.isVerified = true;
@@ -56,32 +77,35 @@ router.post("/verify-otp", async (req, res) => {
     user.otpExpires = null;
     await user.save();
 
-    res.status(200).json({ message: "OTP verified" });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+    res.status(200).json({ message: "OTP verified successfully", token });
   } catch (error) {
-    res.status(500).json({ message: "Verification failed" });
+    res.status(500).json({ message: "OTP verification failed", error: error.message });
   }
 });
+
 
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await Customers.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
 
+    const user = await Customers.findOne({ email });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
     if (!user.isVerified) {
-      return res.status(403).json({ message: "Verify your email first" });
+      return res.status(403).json({ message: "Please verify your email first" });
     }
 
-    const token = jwt.sign({ id: user._id }, 'mykey', {
-      expiresIn: "1h",
-    });
-
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.status(200).json({ token });
   } catch (error) {
-    res.status(500).json({ message: "Login failed" });
+    res.status(500).json({ message: "Login failed", error: error.message });
   }
 });
 
